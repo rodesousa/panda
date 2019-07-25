@@ -23,4 +23,35 @@ defmodule Panda do
       _ -> response
     end
   end
+
+  @doc """
+  Returns odds between two teams for a match
+  """
+  @spec odds_for_match(Integer.t() | String.t()) :: Map.t()
+  def odds_for_match(match_id) do
+    with %{"opponents" => opponents} <- Panda.Url.get_match(match_id) do
+      if Enum.count(opponents) == 2 do
+        [a, b] =
+          opponents
+          |> Panda.Odds.generate()
+
+        [
+          Panda.Odds.win_teams_confrontation(a, b),
+          Panda.Odds.ratio_tournaments(a, b),
+          Panda.Odds.ratio_matches(a, b),
+          Panda.Odds.ratio_match_won(a, b),
+          Panda.Odds.ratio_tournament_won(a, b)
+        ]
+        |> Enum.reduce({0, 0}, fn {x, y}, {i, j} -> {x + i, y + j} end)
+        |> (fn {x, y} ->
+              %{
+                Enum.at(opponents, 0)["opponent"]["slug"] => x,
+                Enum.at(opponents, 1)["opponent"]["slug"] => y
+              }
+            end).()
+      else
+        "There is/are #{Enum.count(opponents)} opponent(s) in this match"
+      end
+    end
+  end
 end
