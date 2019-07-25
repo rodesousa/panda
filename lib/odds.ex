@@ -7,16 +7,27 @@ defmodule Panda.Odds do
   @spec generate(List.t()) :: List.t()
   def generate(opponents) do
     opponents
-    |> Enum.map(fn %{"opponent" => opp} ->
+    # |> Enum.map(fn %{"opponent" => opp} ->
+    |> Task.async_stream(fn %{"opponent" => opp} ->
       value =
-        tournaments =
-        opp["id"]
-        |> get_matches_of_team
-        |> filter_by_date
-        |> get_matches_by_tournament(opp["id"])
+        case Panda.Cache.get(opp["id"]) do
+          [] ->
+            tournaments =
+              opp["id"]
+              |> get_matches_of_team
+              |> filter_by_date
+              |> get_matches_by_tournament(opp["id"])
+
+            Panda.Cache.write(opp["id"], tournaments)
+            tournaments
+
+          [{_, value}] ->
+            value
+        end
 
       {opp["id"], value}
     end)
+    |> Enum.map(fn {_, element} -> element end)
   end
 
   @doc """

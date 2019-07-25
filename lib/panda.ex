@@ -31,27 +31,43 @@ defmodule Panda do
   def odds_for_match(match_id) do
     with %{"opponents" => opponents} <- Panda.Url.get_match(match_id) do
       if Enum.count(opponents) == 2 do
-        [a, b] =
-          opponents
-          |> Panda.Odds.generate()
+        Panda.Cache.init()
 
-        [
-          Panda.Odds.win_teams_confrontation(a, b),
-          Panda.Odds.ratio_tournaments(a, b),
-          Panda.Odds.ratio_matches(a, b),
-          Panda.Odds.ratio_match_won(a, b),
-          Panda.Odds.ratio_tournament_won(a, b)
-        ]
-        |> Enum.reduce({0, 0}, fn {x, y}, {i, j} -> {x + i, y + j} end)
-        |> (fn {x, y} ->
-              %{
-                Enum.at(opponents, 0)["opponent"]["slug"] => x,
-                Enum.at(opponents, 1)["opponent"]["slug"] => y
-              }
-            end).()
+        case Panda.Cache.get(match_id) do
+          [] ->
+            tasks_for_odds(match_id, opponents)
+
+          [{_, odds}] ->
+            odds
+        end
       else
         "There is/are #{Enum.count(opponents)} opponent(s) in this match"
       end
     end
+  end
+
+  defp tasks_for_odds(match_id, opponents) do
+    [a, b] =
+      opponents
+      |> Panda.Odds.generate()
+
+    result =
+      [
+        Panda.Odds.win_teams_confrontation(a, b),
+        Panda.Odds.ratio_tournaments(a, b),
+        Panda.Odds.ratio_matches(a, b),
+        Panda.Odds.ratio_match_won(a, b),
+        Panda.Odds.ratio_tournament_won(a, b)
+      ]
+      |> Enum.reduce({0, 0}, fn {x, y}, {i, j} -> {x + i, y + j} end)
+      |> (fn {x, y} ->
+            %{
+              Enum.at(opponents, 0)["opponent"]["slug"] => x,
+              Enum.at(opponents, 1)["opponent"]["slug"] => y
+            }
+          end).()
+
+    Panda.Cache.write(match_id, result)
+    result
   end
 end
